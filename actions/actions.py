@@ -16,10 +16,16 @@
 
 import os
 import sys
+import subprocess
 
 sys.path.append('hooks/')
 
-from charmhelpers.core.hookenv import action_fail
+from charmhelpers.core.hookenv import (
+    action_fail,
+    action_set,
+    action_get,
+)
+
 from rabbit_utils import (
     ConfigRenderer,
     CONFIG_FILES,
@@ -29,21 +35,30 @@ from rabbit_utils import (
 
 
 def pause(args):
-    """Pause the Ceilometer services.
+    """Pause the RabbitMQ services.
     @raises Exception should the service fail to stop.
     """
     pause_unit_helper(ConfigRenderer(CONFIG_FILES))
 
 
 def resume(args):
-    """Resume the Ceilometer services.
+    """Resume the RabbitMQ services.
     @raises Exception should the service fail to start."""
     resume_unit_helper(ConfigRenderer(CONFIG_FILES))
 
 
+def cluster_status(args):
+    try:
+        clusterstat = subprocess.check_output(['rabbitmqctl', 'cluster_status'])
+        action_set({'output': clusterstat, 'outcome': 'Success'})
+    except subprocess.CalledProcessError as e:
+        action_set({'output': e.output})
+        action_fail('Failed to run rabbitmqctl cluster_status')
+
+
 # A dictionary of all the defined actions to callables (which take
 # parsed arguments).
-ACTIONS = {"pause": pause, "resume": resume}
+ACTIONS = {"pause": pause, "resume": resume, "cluster-status": cluster_status}
 
 
 def main(args):
