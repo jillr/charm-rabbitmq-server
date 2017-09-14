@@ -26,6 +26,7 @@ sys.path.append('hooks/')
 from charmhelpers.core.hookenv import (
     action_fail,
     action_set,
+    action_get,
 )
 
 from rabbit_utils import (
@@ -61,9 +62,36 @@ def cluster_status(args):
         raise
 
 
+def check_queues(args):
+    """Check for queues with greater than N messages.
+    Return those queues to the user."""
+    queue_depth = (action_get("queue_depth"))
+    vhost = (action_get('vhost'))
+    result = []
+    try:
+        queue_result = check_output(['rabbitmqctl', 'list_queues',
+                                     '-p', vhost]).split('\n')
+        queue_list = list((i.split('\t') for i in queue_result))
+        # We need to del the first and last items from rabbitmqctl's output
+        # Those are just 'Listing queues ..' and ''
+        del queue_list[0]
+        del queue_list[-1]
+
+        d = {queue: size for (queue, size) in queue_list}
+
+        for key, value in d.items():
+            if int(value) >= queue_depth:
+                result.append([key, value])
+        action_set({'output': result, 'outcome': 'Success'})
+    except CalledProcessError as e:
+        action_set({'output': e.output})
+        action_fail('Failed to run rabbitmqctl list_queues')
+
+
 # A dictionary of all the defined actions to callables (which take
 # parsed arguments).
-ACTIONS = {"pause": pause, "resume": resume, "cluster-status": cluster_status}
+ACTIONS = {"pause": pause, "resume": resume, "cluster-status": cluster_status,
+           "check-queues": check_queues}
 
 
 def main(args):
